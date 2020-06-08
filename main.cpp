@@ -23,17 +23,22 @@ void producer(std::string directory){
             }
         }
     }
+    jobs.put(Row("", -1, ""));
 }
 
-[[noreturn]] void consumer(std::string re){
+void consumer(std::string re){
     std::regex regex(re);
     Row row("", 0, "");
-    while (true){
+    while (row.getLineNumber()>=0){
         row = jobs.get();
 //        std::cout << row.getFileName() << " " << row.getLineNumber() << std::endl;
         if(std::regex_match(row.getLineContent(), regex))
             std::cout << "File: " << row.getFileName() << " Line: " << row.getLineNumber() << " Match: " << row.getLineContent() << std::endl;
     }
+
+    // devo aggiungere altri elementi sentinella alla lista perchè un solo valore chiuderebbe un solo thread
+    jobs.put(Row("", -1, ""));
+    std::cout << "Exit thread" << std::endl;
    }
 
 
