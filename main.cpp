@@ -19,7 +19,6 @@ void producer(const std::string& directory){
         }
     }
     std::cout << "Exit thread p" << std::endl;
-
     fileJobs.producer_end();
 }
 
