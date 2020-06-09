@@ -21,10 +21,11 @@ private:
     std::condition_variable cv_queue;
     std::mutex mutex_queue;
     const int max_queue_size = 10;
-
+    T terminator;
     std::atomic<bool> producer_stopped = false;
 
 public:
+    Jobs(T terminator);
 
     void producer_end();
     bool continue_check();
@@ -41,6 +42,8 @@ public:
 template<class T>
 T Jobs<T>::get() {
     std::unique_lock<std::mutex> lock(mutex);
+    if(producer_stopped)
+        return terminator;
     while (queue.size() < 1){
         cv.wait(lock);
     }
@@ -75,6 +78,9 @@ bool Jobs<T>::continue_check() {
     std::unique_lock<std::mutex> lock(mutex);
     return !(producer_stopped && queue.size() == 0);
 }
+
+template<class T>
+Jobs<T>::Jobs(T terminator):terminator(terminator) {}
 
 
 #endif //PDS_LAB4_JOBS_H

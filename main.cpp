@@ -7,8 +7,8 @@
 #include <filesystem>
 #include <fstream>
 
-Jobs<Row> linejobs;
-Jobs<std::string> fileJobs;
+Jobs<Row> linejobs(Row("", -1, ""));
+Jobs<std::string> fileJobs("$");
 
 void producer(const std::string& directory){
     std::string line;
@@ -26,7 +26,7 @@ void producer(const std::string& directory){
 void consumer1(){
     std::string line;
     std::string file_path;
-    while (fileJobs.continue_check()) {
+    while (file_path != "$") {
         file_path = fileJobs.get();
         std::ifstream file(file_path);
         std::cout << "Opening file: " << file_path << std::endl;
@@ -44,7 +44,7 @@ void consumer1(){
 void consumer2(const std::string& re){
     std::regex regex(re);
     Row row("", 0, "");
-    while (linejobs.continue_check()){
+    while (row.getLineNumber()>=0){
         row = linejobs.get();
 //        std::cout << row.getFileName() << " " << row.getLineNumber() << std::endl;
         if(std::regex_match(row.getLineContent(), regex))
