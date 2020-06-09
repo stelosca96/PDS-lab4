@@ -14,21 +14,23 @@
 template <class T>
 class Jobs {
 private:
-    std::queue<T> queue;
+//    std::queue<T> queue;
+    static const int max_queue_size = 10;
+    std::vector<T> array;
     std::condition_variable cv;
     std::mutex mutex;
-
+    int index_r=0;
+    int index_w = 0;
+    bool full = false;
     std::condition_variable cv_queue;
     std::mutex mutex_queue;
-    const int max_queue_size = 10;
     T terminator;
-    std::atomic<bool> producer_stopped = false;
+    bool producer_stopped = false;
 
 public:
-    Jobs(T terminator);
+    explicit Jobs(T terminator);
 
     void producer_end();
-    bool continue_check();
 
     // inserisce un job in coda in attesa di essere processato, può
     // essere bloccante se la coda dei job è piena
@@ -42,14 +44,15 @@ public:
 template<class T>
 T Jobs<T>::get() {
     std::unique_lock<std::mutex> lock(mutex);
-    if(producer_stopped)
-        return terminator;
-    while (queue.size() < 1){
+//    if(producer_stopped)
+//        return terminator;
+    while (!full && (index_r == index_w)){
         cv.wait(lock);
     }
 //    std::cout << "get: " << queue.size() << std::endl;
-    T row = queue.front();
-    queue.pop();
+    T row = array[index_r];
+    full = false;
+    index_r = ++index_r % max_queue_size;
     cv_queue.notify_one();
     return row;
 }
@@ -58,12 +61,14 @@ template<class T>
 void Jobs<T>::put(T job){
 //    std::lock_guard<std::mutex> l(mutex);
     std::unique_lock<std::mutex> lock(mutex);
-    if(queue.size() >= max_queue_size){
+    if(full){
 //        std::cout << "Locked put: " << queue.size() << std::endl;
         cv_queue.wait(lock);
     }
 //    std::cout << "put: " << queue.size() << std::endl;
-    queue.push(job);
+    array[index_w] = job;
+    index_w = ++index_w % max_queue_size;
+    full = index_r == index_w;
     cv.notify_one();
 }
 
@@ -74,13 +79,8 @@ void Jobs<T>::producer_end() {
 }
 
 template<class T>
-bool Jobs<T>::continue_check() {
-    std::unique_lock<std::mutex> lock(mutex);
-    return !(producer_stopped && queue.size() == 0);
+Jobs<T>::Jobs(T terminator):terminator(terminator) {
 }
-
-template<class T>
-Jobs<T>::Jobs(T terminator):terminator(terminator) {}
 
 
 #endif //PDS_LAB4_JOBS_H
