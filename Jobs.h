@@ -10,6 +10,7 @@
 #include <mutex>              // std::mutex, std::unique_lock
 #include <condition_variable> // std::condition_variable
 #include <atomic>
+#include <optional>
 
 template <class T>
 class Jobs {
@@ -19,16 +20,12 @@ private:
     std::mutex mutex;
 
     std::condition_variable cv_queue;
-    std::mutex mutex_queue;
-    const int max_queue_size = 10;
-    T terminator;
-    std::atomic<bool> producer_stopped = false;
+    static const int max_queue_size = 10;
+    bool producer_stopped = false;
 
 public:
-    Jobs(T terminator);
 
     void producer_end();
-    bool continue_check();
 
     // inserisce un job in coda in attesa di essere processato, può
     // essere bloccante se la coda dei job è piena
@@ -36,51 +33,44 @@ public:
 
     // legge un job dalla coda e lo rimuove
     // si blocca se non ci sono valori in coda
-    T get();
+    std::optional<T> get();
+
+    bool producer_is_ended();
 };
 
 template<class T>
-T Jobs<T>::get() {
+std::optional<T> Jobs<T>::get() {
     std::unique_lock<std::mutex> lock(mutex);
-    if(producer_stopped)
-        return terminator;
-    while (queue.size() < 1){
-        cv.wait(lock);
-    }
-//    std::cout << "get: " << queue.size() << std::endl;
-    T row = queue.front();
+    cv.wait_for(lock, std::chrono::milliseconds(100),
+            [this](){ return !queue.empty() || producer_stopped;});
+    if(queue.empty())
+        return std::nullopt;
+//    std::cout << "queue size: " <<  queue.size() << " " << (!queue.empty() || producer_stopped) << "Type: " << typeid(T).name()  << std::endl;
+    std::optional<T> row = queue.front();
     queue.pop();
     cv_queue.notify_one();
     return row;
+//    return std::nullopt;
 }
 
 template<class T>
 void Jobs<T>::put(T job){
-//    std::lock_guard<std::mutex> l(mutex);
     std::unique_lock<std::mutex> lock(mutex);
-    if(queue.size() >= max_queue_size){
-//        std::cout << "Locked put: " << queue.size() << std::endl;
-        cv_queue.wait(lock);
-    }
-//    std::cout << "put: " << queue.size() << std::endl;
+    cv_queue.wait(lock, [this](){return queue.size() < max_queue_size;});
     queue.push(job);
     cv.notify_one();
 }
 
 template<class T>
 void Jobs<T>::producer_end() {
-    std::unique_lock<std::mutex> lock(mutex);
+    std::lock_guard<std::mutex> lock(mutex);
     producer_stopped = true;
 }
 
 template<class T>
-bool Jobs<T>::continue_check() {
-    std::unique_lock<std::mutex> lock(mutex);
-    return !(producer_stopped && queue.size() == 0);
+bool Jobs<T>::producer_is_ended(){
+    std::lock_guard<std::mutex> lock(mutex);
+    return producer_stopped;
 }
-
-template<class T>
-Jobs<T>::Jobs(T terminator):terminator(terminator) {}
-
 
 #endif //PDS_LAB4_JOBS_H

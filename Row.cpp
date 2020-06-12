@@ -7,7 +7,6 @@
 Row::Row(const std::string &fileName, int lineNumber, const std::string &lineContent) : file_name(fileName),
                                                                                         line_number(lineNumber),
                                                                                         line_content(lineContent) {}
-
 const std::string &Row::getFileName() const {
     return file_name;
 }
